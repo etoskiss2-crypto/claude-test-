@@ -15,21 +15,21 @@ permissions:
 jobs:
   coding-task:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - name: Start Ollama and load Qwen3
+      - name: Start Ollama and load Qwen3 1.7B
         run: |
           docker run -d --name ollama -p 11434:11434 ollama/ollama:latest
           for attempt in {1..60}; do
             if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
             sleep 2
           done
-          docker exec ollama ollama pull qwen3:4b
+          docker exec ollama ollama pull qwen3:1.7b
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,8 +46,8 @@ jobs:
           TASK: ${{ inputs.task }}
         run: >-
           gptme --no-confirm --tools read,patch,save --tool-format tool
-          --model local/qwen3:4b
-          "Implement only this scoped task: $TASK. Follow repository instructions. Use read, patch, and save tools only. Do not run shell commands, access credentials, or attempt to push or merge. If the task is unclear, make no changes and explain what is missing."
+          --model local/qwen3:1.7b
+          "/no_think Implement only this scoped task: $TASK. Follow repository instructions. Use read, patch, and save tools only. Do not run shell commands, access credentials, or attempt to push or merge. If the task is unclear, make no changes and explain what is missing."
 
       - name: Open pull request
         uses: peter-evans/create-pull-request@v7

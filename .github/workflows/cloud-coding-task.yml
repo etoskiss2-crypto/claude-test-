@@ -1,10 +1,10 @@
-name: Cloud coding task (free)
+name: Cloud coding task (free, local model)
 
 on:
   workflow_dispatch:
     inputs:
       task:
-        description: "Change to implement"
+        description: "Small change to implement"
         required: true
         type: string
 
@@ -15,12 +15,21 @@ permissions:
 jobs:
   coding-task:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Start Ollama and load Qwen3
+        run: |
+          docker run -d --name ollama -p 11434:11434 ollama/ollama:latest
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          docker exec ollama ollama pull qwen3:4b
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,12 +41,13 @@ jobs:
 
       - name: Implement requested change
         env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_BASE_URL: http://127.0.0.1:11434/v1
+          OPENAI_API_KEY: local-only
           TASK: ${{ inputs.task }}
         run: >-
-          gptme --no-confirm --tools read,patch,save
-          --model openrouter/openrouter/free
-          "Do only this scoped task: $TASK. Follow repository instructions. Use read, patch, and save tools only. Do not run shell commands, access credentials, or attempt to push or merge. If the request is unclear, make no changes and explain what is missing."
+          gptme --no-confirm --tools read,patch,save --tool-format tool
+          --model local/qwen3:4b
+          "Implement only this scoped task: $TASK. Follow repository instructions. Use read, patch, and save tools only. Do not run shell commands, access credentials, or attempt to push or merge. If the task is unclear, make no changes and explain what is missing."
 
       - name: Open pull request
         uses: peter-evans/create-pull-request@v7
@@ -47,6 +57,5 @@ jobs:
           delete-branch: true
           title: "Automated coding task"
           body: |
-            Changes prepared by the cloud coding workflow.
-
-            Task details and execution log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Changes prepared by the cloud coding workflow using a local open model.
+            Task details and run log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
